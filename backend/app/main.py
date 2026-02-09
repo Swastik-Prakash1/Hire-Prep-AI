@@ -1,7 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles  # <--- NEW
-from fastapi.responses import FileResponse   # <--- NEW
+from fastapi.staticfiles import StaticFiles  # Required for serving CSS/JS
 from app.schemas import ResumeText, AnswerSubmission, StartInterview, StartGeneral, FeedbackRequest
 from app.interview_engine import InterviewSession
 from app.gemini_client import evaluate_ats
@@ -9,8 +8,10 @@ from app.resume_utils import extract_text_from_pdf
 import uuid
 import os
 
+# Initialize App
 app = FastAPI(title="Hire Prep AI")
 
+# CORS (Allows your frontend to talk to backend)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,10 +19,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory storage
+# In-memory storage for interview sessions
 sessions = {}
 
-# --- API ENDPOINTS (Keep your existing logic) ---
+# =================================================================
+# 1. API ENDPOINTS (Must come BEFORE static files)
+# =================================================================
 
 @app.post("/start-general")
 def start_general(data: StartGeneral):
@@ -31,48 +34,72 @@ def start_general(data: StartGeneral):
 
 @app.post("/upload-resume-text")
 def upload_resume_text(data: ResumeText):
+    # 1. Run ATS Check
     ats_result = evaluate_ats(data.resume_text, data.target_company)
+    
+    # 2. Initialize Session
     session_id = str(uuid.uuid4())
     sessions[session_id] = InterviewSession(session_id, company=data.target_company, resume_text=data.resume_text, mode="resume")
-    return {"session_id": session_id, "ats_result": ats_result}
+    
+    return {
+        "session_id": session_id, 
+        "ats_result": ats_result
+    }
 
 @app.post("/upload-resume-file")
 def upload_resume_file(file: UploadFile = File(...), company: str = Form(...)):
     text = extract_text_from_pdf(file.file)
+    
+    # 1. Run ATS Check
     ats_result = evaluate_ats(text, company)
+    
+    # 2. Initialize Session
     session_id = str(uuid.uuid4())
     sessions[session_id] = InterviewSession(session_id, company=company, resume_text=text, mode="resume")
-    return {"session_id": session_id, "ats_result": ats_result}
+    
+    return {
+        "session_id": session_id, 
+        "ats_result": ats_result
+    }
 
 @app.post("/get-question")
 def get_question(data: StartInterview):
     session = sessions.get(data.session_id)
-    if not session: raise HTTPException(status_code=404, detail="Session not found")
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
     question = session.next_question()
-    if question is None: return {"question": None, "status": "completed"}
+    
+    if question is None:
+        return {"question": None, "status": "completed"}
+        
     return {"question": question, "status": "ongoing"}
 
 @app.post("/submit-answer")
 def submit_answer(data: AnswerSubmission):
     session = sessions.get(data.session_id)
-    if not session: raise HTTPException(status_code=404, detail="Session not found")
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
     session.submit_answer(data.answer)
-    return {"status": "Recorded"}
+    return {"status": "Answer recorded"}
 
 @app.post("/get-feedback")
 def get_feedback_endpoint(data: FeedbackRequest):
     session = sessions.get(data.session_id)
-    if not session: raise HTTPException(status_code=404, detail="Session not found")
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
     feedback = session.get_feedback()
+    # Clean up session
     del sessions[data.session_id]
     return {"feedback": feedback}
 
-# --- STATIC FILES SERVING (THE FIX) ---
 
-# 1. Mount the folder so CSS/JS can be found at /static
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+# =================================================================
+# 2. STATIC FILES (THE FIX)
+# =================================================================
 
-# 2. Serve index.html at the root URL /
-@app.get("/")
-async def read_index():
-    return FileResponse('app/static/index.html')
+# This mounts your "app/static" folder to the root "/" URL.
+# html=True means it automatically looks for "index.html" when you visit the homepage.
+app.mount("/", StaticFiles(directory="app/static", html=True), name="static")
