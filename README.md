@@ -92,5 +92,57 @@ The next question depends on the **entire interview history**, not a fixed scrip
 
 ---
 
-## 📁 Project Structure
+
+---
+
+## ⚙️ Tech Stack
+
+- **Frontend:** HTML, CSS, JavaScript
+- **Backend:** FastAPI, Python
+- **AI:** Google Gemini API
+- **Deployment:** Render (Backend + Frontend)
+- **Speech Recognition:** Web Speech API
+
+---
+
+## 🚧 Challenges Solved
+
+- Making AI feel **human**, not robotic
+- Managing real-time speech recognition and retries
+- Maintaining conversational context across multiple turns
+- Balancing structured interviews with natural flow
+- Serving frontend + backend cleanly from a single deployment
+
+---
+
+## 🌱 Future Scope
+
+- Multimodal analysis (facial expressions, non-verbal cues)
+- Confidence & communication analytics
+- Technical & leadership interview modes
+- Interview summary reports
+- Long-term interview progress tracking
+
+---
+
+## 🎯 Who Is This For?
+
+- Students & fresh graduates
+- Early-career professionals
+- Anyone preparing for HR interviews
+- Hackathon judges looking for **real AI reasoning use-cases**
+
+---
+
+## 📌 Final Note
+
+**HirePrep AI is not about practicing answers.**  
+It’s about practicing **interviews**.
+
+If interviews are conversations, interview prep should be too.
+
+---
+
+### ⭐ If you like this project, give it a star — it really helps!
+
 
