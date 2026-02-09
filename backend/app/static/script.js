@@ -19,6 +19,7 @@ const atsUI = {
     score: document.getElementById("atsScoreCircle"),
     status: document.getElementById("atsStatus"),
     threshold: document.getElementById("atsThreshold"),
+    detailsContainer: document.querySelector(".ats-details"),
     feedbackList: document.getElementById("atsFeedbackList"),
     keywords: document.getElementById("atsKeywords"),
     startBtn: document.getElementById("startAnywayBtn")
@@ -37,7 +38,7 @@ let currentSessionId = null;
 let currentQIndex = 0;
 let recognition;
 let transcript = "";
-const synth = window.speechSynthesis; // Text-to-Speech Engine
+const synth = window.speechSynthesis;
 
 /* =========================================
    2. INITIALIZATION
@@ -48,7 +49,7 @@ navigator.mediaDevices.getUserMedia({ video: true })
   .then(stream => document.getElementById("cameraFeed").srcObject = stream)
   .catch(e => {
       console.error("Camera error:", e);
-      alert("Please enable camera access for the interview experience.");
+      // Optional: alert("Please enable camera access for the interview experience.");
   });
 
 /* Navigation Helper */
@@ -67,16 +68,21 @@ document.getElementById("generalBtn").onclick = async () => {
     document.getElementById("loadingText").textContent = `Setting up ${inputs.company.value} interview...`;
     
     try {
-        const res = await fetch("http://127.0.0.1:8000/start-general", { 
+        // FIXED: Removed "http://127.0.0.1:8000" - Now uses relative path
+        const res = await fetch("/start-general", { 
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ target_company: inputs.company.value })
         });
+        
+        if (!res.ok) throw new Error("Backend connection failed");
+        
         const data = await res.json();
         currentSessionId = data.session_id;
         startInterviewLoop();
     } catch (err) {
-        alert("Server Error: Make sure backend is running!");
+        console.error(err);
+        alert("Server Error: Check your Render logs!");
         showScreen("start");
     }
 };
@@ -108,7 +114,8 @@ async function processResume(payload, type) {
     try {
         let res;
         if (type === "text") {
-            res = await fetch("http://127.0.0.1:8000/upload-resume-text", {
+            // FIXED: Relative path
+            res = await fetch("/upload-resume-text", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
@@ -117,8 +124,11 @@ async function processResume(payload, type) {
             const formData = new FormData();
             formData.append("file", payload);
             formData.append("company", inputs.company.value);
-            res = await fetch("http://127.0.0.1:8000/upload-resume-file", { method: "POST", body: formData });
+            // FIXED: Relative path
+            res = await fetch("/upload-resume-file", { method: "POST", body: formData });
         }
+
+        if (!res.ok) throw new Error("Resume upload failed");
 
         const data = await res.json();
         currentSessionId = data.session_id;
@@ -143,7 +153,6 @@ function handleATSResult(ats) {
     let currentScore = 0;
     const targetScore = ats.score;
     
-    // Reset for animation
     atsUI.score.textContent = "0";
     atsUI.score.style.borderColor = "#334155";
     
@@ -156,31 +165,30 @@ function handleATSResult(ats) {
             atsUI.score.textContent = currentScore;
         }
         
-        // Color transition
         const color = currentScore >= ats.threshold ? "var(--success)" : "var(--danger)";
         atsUI.score.style.borderColor = color;
         atsUI.score.style.color = color;
     }, 20); 
 
-    // 3. Render Lists
-    atsUI.feedbackList.innerHTML = ats.feedback.map(f => `<li>${f}</li>`).join("");
-    atsUI.keywords.innerHTML = ats.missing_keywords.length > 0 
-        ? ats.missing_keywords.map(k => `<span>${k}</span>`).join("") 
-        : "<span style='color:var(--text-muted)'>No missing keywords detected.</span>";
-
-    // 4. Configure "Start" Button
+    // 3. TUTORIAL MODE UI LOGIC (Hide feedback if passed)
     if (ats.is_passed) {
+        if (atsUI.detailsContainer) atsUI.detailsContainer.style.display = 'none';
+        
         atsUI.startBtn.textContent = "Start Interview Now ➝";
         atsUI.startBtn.className = "btn accent";
-        // Optional: Auto-start after delay
-        // setTimeout(() => startInterviewLoop(), 4000); 
     } else {
+        if (atsUI.detailsContainer) atsUI.detailsContainer.style.display = 'block';
+        
+        atsUI.feedbackList.innerHTML = ats.feedback.map(f => `<li>${f}</li>`).join("");
+        atsUI.keywords.innerHTML = ats.missing_keywords.length > 0 
+            ? ats.missing_keywords.map(k => `<span>${k}</span>`).join("") 
+            : "<span style='color:var(--text-muted)'>No missing keywords detected.</span>";
+            
         atsUI.startBtn.textContent = "Ignore Risks & Start";
         atsUI.startBtn.className = "btn warning";
     }
 }
 
-// Bind the "Start Anyway" button
 atsUI.startBtn.onclick = startInterviewLoop;
 
 /* =========================================
@@ -196,7 +204,8 @@ async function fetchNextQuestion() {
     interviewUI.status.textContent = "Interviewer is thinking...";
     
     try {
-        const res = await fetch("http://127.0.0.1:8000/get-question", {
+        // FIXED: Relative path
+        const res = await fetch("/get-question", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ session_id: currentSessionId })
@@ -209,12 +218,10 @@ async function fetchNextQuestion() {
             return;
         }
         
-        // Update UI
         currentQIndex++;
         interviewUI.count.textContent = currentQIndex;
         interviewUI.question.textContent = data.question;
         
-        // Audio & State
         speakText(data.question);
         interviewUI.status.textContent = "Listening...";
         resetMicUI();
@@ -229,7 +236,8 @@ async function finishInterview() {
     document.getElementById("loadingText").textContent = "Generating comprehensive feedback...";
     
     try {
-        const res = await fetch("http://127.0.0.1:8000/get-feedback", {
+        // FIXED: Relative path
+        const res = await fetch("/get-feedback", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ session_id: currentSessionId })
@@ -248,15 +256,13 @@ async function finishInterview() {
    6. AUDIO SYSTEMS (TTS & STT)
    ========================================= */
 
-/* Text to Speech */
 function speakText(text) {
-    if (synth.speaking) synth.cancel(); // Stop any current speech
+    if (synth.speaking) synth.cancel();
     
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "en-US";
     utterance.rate = 1.0;
     
-    // Select a better voice if available
     const voices = synth.getVoices();
     const preferredVoice = voices.find(v => v.name.includes("Google US English") || v.name.includes("Samantha"));
     if (preferredVoice) utterance.voice = preferredVoice;
@@ -264,18 +270,14 @@ function speakText(text) {
     synth.speak(utterance);
 }
 
-/* Speech to Text */
 interviewUI.mic.onclick = () => {
-    // 1. Stop the AI from speaking if user interrupts
     if (synth.speaking) synth.cancel();
 
-    // 2. UI Updates
     interviewUI.mic.classList.add("hidden");
     interviewUI.confirm.classList.remove("hidden");
     transcript = "";
     interviewUI.transcript.innerHTML = "Listening...";
     
-    // 3. Init Recognition
     recognition = new webkitSpeechRecognition();
     recognition.lang = "en-US";
     recognition.continuous = true;
@@ -290,19 +292,18 @@ interviewUI.mic.onclick = () => {
                 interim += event.results[i][0].transcript;
             }
         }
-        // Show live transcript
         interviewUI.transcript.innerHTML = transcript + '<span style="color:#94a3b8">' + interim + '</span>';
     };
     
     recognition.start();
 };
 
-/* Submit Answer */
 document.getElementById("acceptBtn").onclick = async () => {
     if (recognition) recognition.stop();
     interviewUI.status.textContent = "Submitting answer...";
     
-    await fetch("http://127.0.0.1:8000/submit-answer", {
+    // FIXED: Relative path
+    await fetch("/submit-answer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: currentSessionId, answer: transcript })
@@ -311,7 +312,6 @@ document.getElementById("acceptBtn").onclick = async () => {
     fetchNextQuestion();
 };
 
-/* Retry Answer */
 document.getElementById("retryBtn").onclick = resetMicUI;
 
 function resetMicUI() {
