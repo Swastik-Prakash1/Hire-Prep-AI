@@ -20,6 +20,7 @@ else:
 # --- 3. MODEL SELECTION ---
 # We MUST use 1.5-flash first to verify the connection. 
 # Once this works, you can try "gemini-2.0-flash-exp" later.
-MODEL_NAME = "models/gemini-1.5-flash"
+MODEL_NAME = "models/gemini-3-flash-preview"
 
 TOTAL_QUESTIONS = 5
+
